@@ -4,8 +4,8 @@ channels:
   - bioconda
   - defaults
 dependencies:
-  - bcftools=1.9
-  - bedtools=2.29.2
-  - samtools=1.9
-  - vcftools=0.1.16
-  - bwa=0.7.17
+  - bcftools=1.21
+  - bedtools=2.31.1
+  - samtools=1.21
+  - vcftools=0.1.17
+  - bwa=0.7.19
