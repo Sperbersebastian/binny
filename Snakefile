@@ -11,8 +11,29 @@ import pandas as pd
 import yaml
 
 
+sys.stderr.write(f"DEBUG: sys.executable = {sys.executable}\n")
+sys.stderr.write(f"DEBUG: sys.path      = {sys.path}\n")
+
+ 
 # default executable for snakmake
 shell.executable("bash")
+
+PROJECT_ROOT = os.path.dirname(__file__) 
+
+def srcdir(path):
+    return os.path.abspath(path)
+
+def to_minutes(val):
+    if isinstance(val, int):
+        return val
+    try:
+        parts = list(map(int, val.split(":")))
+        while len(parts) < 3:
+            parts.insert(0, 0)  # pad with zeros
+        hours, minutes, seconds = parts
+        return hours * 60 + minutes + (1 if seconds > 0 else 0)
+    except Exception as e:
+        raise ValueError(f"Invalid time value for runtime: {val}") from e
 
 
 #functions
@@ -57,8 +78,7 @@ def _process_file(fname, inp, outfilename):
 
 
 # default configuration file
-configfile:
-    srcdir("config/config.default.yaml")
+configfile: srcdir("config/config.default.yaml")
 
 # some parameters
 SRCDIR = srcdir("workflow/scripts")
@@ -66,9 +86,18 @@ BINDIR = srcdir("workflow/bin")
 ENVDIR = srcdir("workflow/envs")
 CONDA_DIR = config['conda_source']
 
-if SRCDIR not in sys.path:
-    sys.path.append(SRCDIR)
-    import remove_unused_checkm_hmm_profiles as prepCheckM
+
+
+# Manually define script-relative path (since __file__ is not defined in Snakemake)
+SCRIPTS_DIR = os.path.abspath("workflow/scripts")
+
+if SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, SCRIPTS_DIR)
+
+import remove_unused_checkm_hmm_profiles as prepCheckM
+
+
+
 
 # get parameters from the config file
 
@@ -221,7 +250,7 @@ rule prepare_input_data:
               for mappings_id in mappings_ids]
     threads: 1 
 #    resources:
-#        runtime = "4:00:00",
+#        runtime = to_minutes("4:00:00"),
 #        mem = MEMCORE
     message:
         "Preparing input."
@@ -238,7 +267,7 @@ rule format_assembly:
     threads: 
         getThreads(1)
     resources:
-        runtime = "2:00:00",
+        runtime = to_minutes("2:00:00"),
         mem = MEMCORE
     message:
         "Preparing assembly."
@@ -261,7 +290,7 @@ if not CONTIG_DEPTH:
         output:
             os.path.join(OUTPUTDIR, "intermediary/assembly_contig_depth_{sample}.txt")
         resources:
-            runtime = "4:00:00",
+            runtime = to_minutes("4:00:00"),
             mem = BIGMEMCORE if BIGMEMCORE else MEMCORE
         threads:
             1
@@ -295,7 +324,7 @@ if not CONTIG_DEPTH:
         params:
             int_dir=os.path.join(OUTPUTDIR, "intermediary")
         resources:
-            runtime = "1:00:00",
+            runtime = to_minutes("1:00:00"),
             mem = MEMCORE
         threads:
             getThreads(1)
@@ -337,7 +366,7 @@ rule annotate:
     threads:
         getThreads(24)
     resources:
-        runtime = "48:00:00",
+        runtime = to_minutes("48:00:00"),
         mem = MEMCORE
     log:
         os.path.join(OUTPUTDIR, "logs/analysis_annotate.log")
@@ -352,16 +381,33 @@ rule annotate:
         export PERL5LIB=$CONDA_PREFIX/lib/site_perl/5.26.2
         export LC_ALL=en_US.utf-8
         export TMPDIR={TMPDIR}
-	    {BINDIR}/prokkaP --dbdir $CONDA_PREFIX/db --force --outdir {params.int_dir} --tmpdir {TMPDIR} --prefix prokka \
-	                     --noanno --cpus {threads} --metagenome {input.assembly} >> {log} 2>&1
-        
-	    # Prokka gives a gff file with a long header and with all the contigs at the bottom.  The command below keeps
-	    # only the gff table.
+        {BINDIR}/prokkaP --dbdir $CONDA_PREFIX/db \
+                        --force \
+                        --outdir {params.int_dir} \
+                        --tmpdir {TMPDIR} \
+                        --prefix prokka \
+                        --noanno \
+                        --cpus {threads} \
+                        --metagenome {input.assembly} \
+                    >> {log} 2>&1
 
-        LN=`grep -Hn "^>" {output.gff} | head -n1 | cut -f2 -d ":" || if [[ $? -eq 141 ]]; then true; else exit $?; fi`
-        LN1=1
-        LN=$(($LN-$LN1))
-        head -n $LN {output.gff} | grep -v "^#" | sort | uniq | grep -v "^==" > {output.gff_filt}
+        # now strip off the FASTA section and comments
+        FIRST_HDR=$(grep -n '^>' {output.gff} | cut -d: -f1 | head -n1 || true)
+        if [[ -n "$FIRST_HDR" && "$FIRST_HDR" -gt 1 ]]; then
+            CUT_LINE=$(( FIRST_HDR - 1 ))
+            head -n "$CUT_LINE" {output.gff} \
+              | grep -v '^#' \
+              | sort \
+              | uniq \
+              | grep -v '^==' \
+              > {output.gff_filt}
+        else
+            grep -v '^#' {output.gff} \
+              | sort \
+              | uniq \
+              | grep -v '^==' \
+              > {output.gff_filt}
+        fi
         """
 
 # Find markers on contigs
@@ -374,9 +420,9 @@ rule mantis_checkm_marker_sets:
         os.path.join(OUTPUTDIR, "intermediary/mantis_out/consensus_annotation.tsv"),
         out_dir=directory(os.path.join(OUTPUTDIR, "intermediary/mantis_out"))
     params:
-        binny_cfg=srcdir("config/binny_mantis.cfg")
+        binny_cfg = os.path.join(workflow.basedir, "config", "binny_mantis.cfg")
     resources:
-        runtime = "48:00:00",
+        runtime = to_minutes("48:00:00"),
         mem = MEMCORE
     conda:
         MANTIS_ENV if MANTIS_ENV else os.path.join(ENVDIR, "mantis.yaml")
@@ -437,7 +483,7 @@ rule binny:
         hdbscan_epsilon_range=config["clustering"]["hdbscan_epsilon_range"],
         write_contig_data=config["write_contig_data"]
     resources:
-        runtime = "12:00:00",
+        runtime = to_minutes("12:00:00"),
         mem = BIGMEMCORE if BIGMEMCORE else MEMCORE
     threads:
         getThreads(BIGMEMS) if BIGMEMCORE else getThreads(80)
