@@ -1030,7 +1030,12 @@ def binny_iterate(contig_data_df, threads, marker_sets_graph, tigrfam2pfam_data_
 
     good_bins_per_round_list.sort()
     mid = len(good_bins_per_round_list) // 2
-    median_bins_per_round = (good_bins_per_round_list[mid] + good_bins_per_round_list[~mid]) / 2
+    if len(good_bins_per_round_list) % 2 == 0:
+        median_bins_per_round = (
+            good_bins_per_round_list[mid - 1] + good_bins_per_round_list[mid]
+        ) / 2
+    else:
+        median_bins_per_round = good_bins_per_round_list[mid]
 
     # Cheat a bit on first round
     if embedding_iteration == 1:
@@ -1536,7 +1541,7 @@ def iterative_embedding(x_contigs, depth_dict, all_good_bins, starting_completen
         ee_iter += opt_cycle_iter
         logging.info('EE iteration {0} - KLD: {1}'.format(ee_iter, round(KLD_prev, 4)))
 
-        while 2000 >= ee_iter <= 250 or KLD_DIFF > KLD * 0.01:  # or KLDRC < maxKLDRC:
+        while ee_iter <= 2000 and (ee_iter <= 250 or KLD_DIFF > KLD * 0.01):  # or KLDRC < maxKLDRC:
             embedding.optimize(n_iter=opt_cycle_iter, exaggeration=early_exagg, inplace=True, learning_rate=learning_rate,
                                momentum=0.5, n_jobs=threads, verbose=0)
             KLD = embedding.kl_divergence
@@ -1554,7 +1559,7 @@ def iterative_embedding(x_contigs, depth_dict, all_good_bins, starting_completen
         learning_rate = max(200, min(64e3, int(len(x_pca) * 0.1)))
         logging.info(f'Main iteration learning rate: {learning_rate}')
 
-        while 10000 >= main_iter <= 500 or KLD_DIFF > KLD * 0.01:
+        while main_iter <= 10000 and (main_iter <= 500 or KLD_DIFF > KLD * 0.01):
             embedding.optimize(n_iter=opt_cycle_iter, exaggeration=1, inplace=True, learning_rate=learning_rate,
                                momentum=0.8, n_jobs=threads, verbose=0)
             KLD = embedding.kl_divergence
