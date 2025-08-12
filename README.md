@@ -1,7 +1,24 @@
+## Changes in This Fork
+
+### Modernized Environments
+- **Updated package versions:** The Conda environments have been extensively updated. Key libraries such as `networkx` (2.6.3 → 3.4.2), `pandas` (1.4.1 → 2.2.3), `pyarrow` (7.0.0 → 20.0.0), and `python` (3.8 → 3.13) are now shipped in their latest versions. Bioinformatics tools such as `seqkit` (2.1.0 → 2.10.0), `mantis_pfa` (1.4.7 → 1.5.5), as well as `bcftools`, `bedtools`, `samtools`, `vcftools`, and `bwa` have also been brought up to date.
+- **Always up-to-date Snakemake:** The Snakemake environment no longer pins a fixed version. Instead of `snakemake=7.16.0`, the latest available version is installed when creating the environment.
+
+### Pipeline Improvements
+- **New helper functions:** The `Snakefile` now includes `srcdir()` for calculating relative paths and `to_minutes()` to convert time specifications like `4:00:00` into minutes. This allows resource requests to be specified more precisely.
+- **More robust path handling:** The scripts directory is explicitly added to `sys.path`, making it easier to locate custom modules.
+- **Refactored annotation step:** The Prokka call has been split into more transparent steps, and the removal of the FASTA section from the GFF file has been improved.
+
+### Launcher Script (`binny`)
+- **Micromamba instead of Conda:** All `conda` calls have been replaced with `micromamba`, including activation, deactivation, and package installation. `micromamba` is automatically added to the `PATH`, and Snakemake is explicitly configured to use it via an environment variable.
+- **No more version pins:** The Snakemake environment is created without fixed version constraints for Snakemake, Mamba, or Python, ensuring that the most current versions are used.
+- **Increased performance:** The default number of cores (`MAX_THREADS`) and the cores used by Snakemake have been increased from 50 and 1, respectively, to 80. This makes better use of modern multi-core systems.
+
+### Why These Changes?
+These updates bring the codebase in line with the latest versions of its dependencies and noticeably increase performance. Switching to micromamba speeds up and simplifies environment management. Using the latest Snakemake releases and updated dependencies improves stability, compatibility, and functionality—making this fork a significant upgrade for running binny in modern HPC environments.
+
+
 [![DOI](https://zenodo.org/badge/327396590.svg)](https://zenodo.org/badge/latestdoi/327396590)
-
-
-
 # binny
 
 ## Quickstart
