@@ -17,6 +17,7 @@
 ### Why These Changes?
 These updates bring the codebase in line with the latest versions of its dependencies and noticeably increase performance. Switching to micromamba speeds up and simplifies environment management. Using the latest Snakemake releases and updated dependencies improves stability, compatibility, and functionality—making this fork a significant upgrade for running binny in modern HPC environments.
 -------------------------------
+**Start of original binny Readme.**
 
 [![DOI](https://zenodo.org/badge/327396590.svg)](https://zenodo.org/badge/latestdoi/327396590)
 # binny
