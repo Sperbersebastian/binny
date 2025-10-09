@@ -441,20 +441,49 @@ rule mantis_checkm_marker_sets:
         # clean output dir
         if [ -d {output.out_dir} ]; then rm -f {output.out_dir}/* || true ; fi >> {log} 2>&1
 
-        # ensure NLTK tagger exists inside this conda env
-        export NLTK_DATA="${{CONDA_PREFIX}}/share/nltk_data"
+        # Quelle aus CFG lesen (keine Hardcodes)
+        SRC_DIR="$(python - <<'PY'
+cfg="{params.binny_cfg}"
+val=None
+with open(cfg) as f:
+    for line in f:
+        s=line.strip()
+        if s.startswith("ncbi_ref_folder="):
+            val=s.split("=",1)[1].strip(); break
+print(val or "")
+PY
+)"
+        if [ -z "$SRC_DIR" ] || [ ! -s "$SRC_DIR/gc.prt.dmp" ]; then
+          echo "[mantis] ERROR: gc.prt.dmp nicht gefunden via ncbi_ref_folder in {params.binny_cfg}" >> {log}; exit 1
+        fi
+
+        # Exakten Resources-Pfad des aktiven Env ermitteln
+        RES_BASE="$(python - <<'PY'
+import os, Resources; print(os.path.dirname(Resources.__file__))
+PY
+)"
+        RES_DIR="$RES_BASE"
+        NCBI_DIR="$RES_BASE/NCBI"
+        mkdir -p "$NCBI_DIR"
+
+        # Dateien so ablegen, wie der MANTIS-Check sie erwartet
+        cp -f "$SRC_DIR/gc.prt.dmp" "$NCBI_DIR/gc.prt.dmp"
+        cp -f "$SRC_DIR/gc.prt.dmp" "$NCBI_DIR/gc.prt"     # zweiter Name
+        : > "$NCBI_DIR/README"
+        : > "$RES_DIR/Taxonomy.db"
+        echo "[mantis] seeded: $NCBI_DIR/gc.prt(.dmp) + $RES_DIR/Taxonomy.db" >> {log}
+
+        # NLTK-Snippet
+        export NLTK_DATA="${CONDA_PREFIX}/share/nltk_data"
         python - <<'PY' >> {log} 2>&1
 import os, nltk
-d=os.environ.get("NLTK_DATA","")
-os.makedirs(d, exist_ok=True)
-try:
-    nltk.data.find('taggers/averaged_perceptron_tagger_eng')
-except LookupError:
-    nltk.download('averaged_perceptron_tagger_eng', download_dir=d)
+d=os.environ.get("NLTK_DATA",""); os.makedirs(d, exist_ok=True)
+try: nltk.data.find('taggers/averaged_perceptron_tagger_eng')
+except LookupError: nltk.download('averaged_perceptron_tagger_eng', download_dir=d)
 print("NLTK_DATA =", d)
 PY
 
-        # run mantis
+        # MANTIS laufen lassen
         mantis run -i {input.proteins} \
                    -da heuristic \
                    -mc {params.binny_cfg} \
@@ -463,6 +492,7 @@ PY
                    --no_taxonomy \
                    -et 1e-3 >> {log} 2>&1
         """
+
 
 rule binny:
     input:
