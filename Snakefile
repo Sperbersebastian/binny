@@ -474,7 +474,7 @@ PY
         echo "[mantis] seeded: $NCBI_DIR/gc.prt(.dmp) + $RES_DIR/Taxonomy.db" >> {log}
 
         # NLTK-Snippet
-        export NLTK_DATA="${CONDA_PREFIX}/share/nltk_data"
+        export NLTK_DATA="$CONDA_PREFIX/share/nltk_data"
         python - <<'PY' >> {log} 2>&1
 import os, nltk
 d=os.environ.get("NLTK_DATA",""); os.makedirs(d, exist_ok=True)
