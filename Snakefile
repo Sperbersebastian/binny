@@ -6,6 +6,8 @@ import shutil
 import sys
 import tarfile
 import urllib.request
+from collections import OrderedDict
+
 
 import pandas as pd
 import yaml
@@ -435,8 +437,24 @@ rule mantis_checkm_marker_sets:
     message:
         "MANTIS: Running MANTIS with CheckM marker sets."
     shell:
-        """
-        if [ -d {output.out_dir} ]; then rm {output.out_dir}/* || true ; fi >> {log} 2>&1
+        r"""
+        # clean output dir
+        if [ -d {output.out_dir} ]; then rm -f {output.out_dir}/* || true ; fi >> {log} 2>&1
+
+        # ensure NLTK tagger exists inside this conda env
+        export NLTK_DATA="${{CONDA_PREFIX}}/share/nltk_data"
+        python - <<'PY' >> {log} 2>&1
+import os, nltk
+d=os.environ.get("NLTK_DATA","")
+os.makedirs(d, exist_ok=True)
+try:
+    nltk.data.find('taggers/averaged_perceptron_tagger_eng')
+except LookupError:
+    nltk.download('averaged_perceptron_tagger_eng', download_dir=d)
+print("NLTK_DATA =", d)
+PY
+
+        # run mantis
         mantis run -i {input.proteins} \
                    -da heuristic \
                    -mc {params.binny_cfg} \
